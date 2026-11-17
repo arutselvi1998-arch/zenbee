@@ -1,0 +1,30 @@
+{
+  "channels": [
+    {
+      "key": "tura-infotech",
+      "name": "Tura Infotech and Academy",
+      "youtube_url": "https://www.youtube.com/@TuraInfotech",
+      "instagram_url": "https://www.instagram.com/turainfotech/",
+      "content_type": "technical",
+      "language": "Tamil",
+      "publish_time": "16:00",
+      "timezone": "Asia/Kolkata",
+      "review_required": true,
+      "reminder_service": "Google Calendar",
+      "reminder_minutes": 15
+    },
+    {
+      "key": "zenbee",
+      "name": "Zenbee",
+      "youtube_url": "https://www.youtube.com/@zenbeechannel",
+      "instagram_url": "https://www.instagram.com/zenbee_channel/",
+      "content_type": "cartoon stories",
+      "language": "Tamil",
+      "publish_time": "19:00",
+      "timezone": "Asia/Kolkata",
+      "review_required": true,
+      "reminder_service": "Google Calendar",
+      "reminder_minutes": 15
+    }
+  ]
+}

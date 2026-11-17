@@ -16,6 +16,7 @@ from .generator import generate_story
 from .production import router as production_router, start_worker
 from .scheduler import router as scheduler_router
 from .security import router as security_router, enabled as auth_enabled, account_for, check_origin
+from .channels import router as channels_router
 
 @asynccontextmanager
 async def lifespan(app):
@@ -31,6 +32,7 @@ app.include_router(settings_router)
 app.include_router(production_router)
 app.include_router(scheduler_router)
 app.include_router(security_router)
+app.include_router(channels_router)
 
 @app.middleware('http')
 async def protect_workspace(request: Request, call_next):
@@ -146,7 +148,9 @@ def generate(episode_id: int, db: Session = Depends(get_session)):
     history = [{'topic': e.topic, 'story': e.story} for e in reversed(previous)]
     try:
         brand = db.get(WorkspaceSetting, 'brand')
-        story, mode = generate_story(series, episode, history, brand=brand.data if brand else None)
+        profiles = db.get(WorkspaceSetting, 'channel_profiles')
+        channel = next((p for p in profiles.data['channels'] if p['series_id'] == series.id), None) if profiles else None
+        story, mode = generate_story(series, episode, history, brand=brand.data if brand else None, channel=channel)
         episode.story = story.model_dump()
         episode.generation_mode = mode
         episode.status = 'script_ready'

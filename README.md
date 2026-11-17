@@ -12,6 +12,23 @@ Chosen target workflow: OpenAI generation → owner reviews the final video → 
 
 GitHub stores the source code and runs the included build/test workflow. It does not run this FastAPI backend or its scheduled worker. Continuous publishing requires an always-running host; no production hosting has been deployed. Never commit provider keys, OAuth tokens, the workspace database, or generated videos.
 
+### Two separate channel plans
+
+| Channel | Content | Language | Daily publishing time | Planned Calendar reminder |
+| --- | --- | --- | --- | --- |
+| Tura Infotech and Academy | Technical education | Tamil | 4:00 PM | 3:45 PM |
+| Zenbee | Cartoon stories | Tamil | 7:00 PM | 6:45 PM |
+
+All times use Asia/Kolkata. Both channels target their own YouTube and Instagram accounts, require owner review, and use separate series memory and recurring schedules. `config/channels.json` contains the exact account links and preferences. Technical generation uses an educational prompt; cartoon generation uses a storytelling prompt. The language instruction requires Tamil script for spoken narration, dialogue, captions and metadata. Demo mode remains a labeled English placeholder rather than pretending to be generated Tamil content.
+
+To load these plans into a fresh workspace, run from `backend/`:
+
+```powershell
+python ../scripts/configure-channels.py --start-date 2026-11-17
+```
+
+The command is idempotent: it reuses each configured channel's series and schedule. It saves plans without contacting AI providers, creating Calendar events, publishing posts or modifying already materialized episode times. The authenticated `/api/channels` endpoint reports the saved profiles and disconnected Calendar/publishing state. In **Recurring Content Scheduler**, use **Create Episodes** to populate future episodes when ready.
+
 ## Reference design update
 
 The settings / insights reference set adds nine more screens: Logs & Notifications, System Settings, Team & Permissions, Brand & Style Settings, Social Account Connections, AI Providers & API Keys, Generation Cost, AI Content Insights, and Episode Performance. The first three use the supplied dark robot banners; the other screens retain the cartoon / purple styling.

@@ -38,7 +38,7 @@ def materialize(record, db, now=None):
         raise HTTPException(404, 'Series no longer exists')
     now = now or utcnow()
     settings = db.get(WorkspaceSetting, 'system')
-    lead = (settings.data if settings else {}).get('lead_hours', 24)
+    lead = (settings.data if settings else {}).get('generation_lead_hours', 24)
     created = 0
     for publish_at in occurrences(plan, now):
         existing = db.exec(select(ScheduleOccurrence).where(ScheduleOccurrence.schedule_id == record.id,
