@@ -51,6 +51,8 @@ class WorkspaceSetting(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
 
 class ProductionJob(SQLModel, table=True):
+    __table_args__ = (Index('uq_production_active_episode', 'episode_id', unique=True,
+        sqlite_where=text("status IN ('queued','rendering')"), postgresql_where=text("status IN ('queued','rendering')")),)
     id: Optional[int] = Field(default=None, primary_key=True)
     episode_id: int = Field(foreign_key='episode.id', index=True)
     status: str = Field(default='queued', index=True)
@@ -60,6 +62,21 @@ class ProductionJob(SQLModel, table=True):
     voice: bool = False
     created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
     updated_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
+
+class AnimationPlan(SQLModel, table=True):
+    job_id: int = Field(primary_key=True, foreign_key='productionjob.id')
+    model: str = 'gen4.5'
+    context: dict = Field(sa_column=Column(JSON, nullable=False))
+
+class AnimationClip(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint('job_id', 'part'),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    job_id: int = Field(foreign_key='productionjob.id', index=True)
+    part: int
+    scene_index: int
+    duration: int
+    state: str = 'pending'
+    task_id: Optional[str] = None
 
 class ScheduleOccurrence(SQLModel, table=True):
     __table_args__ = (UniqueConstraint('schedule_id', 'publish_at'),)

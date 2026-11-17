@@ -48,7 +48,7 @@ Connect each Instagram account in the Publishing Queue. The callback checks that
 
 ## 5. Review, Calendar reminders and scheduled publishing
 
-1. Generate real content, inspect/edit it, and render the final video in Production Queue. The built-in renderer currently makes storyboard caption videos; it does not generate animated cartoon clips.
+1. Generate real content, inspect/edit it, and render the final video in AI Video Generator or Production Queue. Choose Runway animation for moving cartoon clips; the separate storyboard mode makes caption-card previews. Follow [ANIMATION_SETUP.md](ANIMATION_SETUP.md) to configure the video provider.
 2. In Publishing Queue, choose the channel and completed render. Review the title, caption and whether the video is made for children. Saving chooses the next daily 4 PM or 7 PM India-time slot automatically.
 3. Set `GOOGLE_CALENDAR_SYNC=1` to enable automatic Calendar synchronization. One event per release is created/updated with a popup reminder 15 minutes before the publishing time (3:45 PM / 6:45 PM). Enable Calendar notifications on your device. Creating a release less than 15 minutes before its slot cannot retroactively deliver the reminder. Cancelling a release removes its event on the next successful sync.
 4. Watch the complete video, review the metadata/audience setting, and select **Approve scheduled publishing**. Approval binds to the saved media hash and script. Changed files/scripts cannot publish through that release.

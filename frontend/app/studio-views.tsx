@@ -2415,7 +2415,6 @@ export default function StudioViews(props: Props) {
           {[
             "Story & Script Editor",
             "Scene & Prompt Editor",
-            "AI Video Generator",
             "Voice & Sound Studio",
             "Video Editor & Preview",
             "Thumbnail & Cover Creator",
@@ -3801,7 +3800,7 @@ export default function StudioViews(props: Props) {
               </section>
             </div>
           )}
-          {page === "Production Queue" && (
+          {(page === "Production Queue" || page === "AI Video Generator") && (
             <ProductionWorkspace episodes={props.episodes} />
           )}
           {(page === "Publishing Queue" ||

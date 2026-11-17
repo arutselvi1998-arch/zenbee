@@ -2,16 +2,20 @@
 import logging
 import os
 from pathlib import Path
+from datetime import datetime
+from typing import Literal
+from uuid import UUID
 import subprocess
 from threading import Event, Thread
 import textwrap
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from .db import engine, get_session
-from .models import Episode, ProductionJob, StudioEvent, utcnow
+from .models import Episode, ProductionJob, StudioEvent, Series, WorkspaceSetting, AnimationPlan, AnimationClip, utcnow
 from .schemas import Story
 
 router = APIRouter(prefix='/api/production')
@@ -20,18 +24,41 @@ MEDIA = Path(os.getenv('MEDIA_ROOT', './media')).resolve()
 @router.get('/status')
 def status():
     return {'worker_enabled': os.getenv('PRODUCTION_WORKER', '0') == '1',
-        'renderer': 'storyboard', 'ai_speech_configured': bool(os.getenv('OPENAI_API_KEY')),
+        'renderer': 'storyboard', 'animation_provider':'Runway Gen-4.5',
+        'animation_configured':bool(os.getenv('RUNWAYML_API_SECRET')),
+        'ai_speech_configured': bool(os.getenv('OPENAI_API_KEY')),
         'automated_stories_enabled': os.getenv('AUTOMATED_STORIES', '0') == '1'}
 
 class RenderRequest(BaseModel):
     episode_id: int
     voice: bool = False
+    renderer: Literal['storyboard','animated'] = 'storyboard'
+    paid_generation_approved: bool = False
 
-@router.get('/jobs', response_model=list[ProductionJob])
+class JobRead(BaseModel):
+    id: int
+    episode_id: int
+    status: str
+    attempts: int
+    error: str | None
+    story_snapshot: dict
+    voice: bool
+    created_at: datetime
+    updated_at: datetime
+    renderer: str = 'storyboard'
+    clips: list[dict] = Field(default_factory=list)
+
+def read_job(job,db):
+    plan=db.get(AnimationPlan,job.id)
+    clips=db.exec(select(AnimationClip).where(AnimationClip.job_id == job.id).order_by(AnimationClip.part)).all() if plan else []
+    return {**job.model_dump(),'renderer':'animated' if plan else 'storyboard',
+        'clips':[c.model_dump() for c in clips]}
+
+@router.get('/jobs', response_model=list[JobRead])
 def jobs(db: Session = Depends(get_session)):
-    return db.exec(select(ProductionJob).order_by(ProductionJob.id.desc()).limit(100)).all()
+    return [read_job(job,db) for job in db.exec(select(ProductionJob).order_by(ProductionJob.id.desc()).limit(100)).all()]
 
-@router.post('/jobs', response_model=ProductionJob, status_code=201)
+@router.post('/jobs', response_model=JobRead, status_code=201)
 def enqueue(data: RenderRequest, db: Session = Depends(get_session)):
     episode = db.get(Episode, data.episode_id)
     if not episode or not episode.story:
@@ -40,6 +67,13 @@ def enqueue(data: RenderRequest, db: Session = Depends(get_session)):
         raise HTTPException(409, 'Restore this cancelled episode before rendering')
     if data.voice and not os.getenv('OPENAI_API_KEY'):
         raise HTTPException(422, 'Configure OPENAI_API_KEY on the server to use AI speech')
+    if data.renderer == 'animated':
+        if not data.paid_generation_approved:
+            raise HTTPException(422,'Confirm paid video generation before submitting animated scenes')
+        if not os.getenv('RUNWAYML_API_SECRET'):
+            raise HTTPException(422,'Configure RUNWAYML_API_SECRET on the server for animated video generation')
+        if episode.generation_mode == 'demo':
+            raise HTTPException(422,'Generate and review a real script first; demo placeholders cannot start paid animation')
     active = db.exec(select(ProductionJob).where(ProductionJob.episode_id == episode.id,
         ProductionJob.status.in_(['queued', 'rendering']))).first()
     if active:
@@ -47,13 +81,29 @@ def enqueue(data: RenderRequest, db: Session = Depends(get_session)):
     story = Story.model_validate(episode.story)
     job = ProductionJob(episode_id=episode.id, story_snapshot=story.model_dump(), voice=data.voice)
     db.add(job)
-    db.add(StudioEvent(episode_id=episode.id, action='Render queued', detail='Storyboard MP4; AI speech enabled' if data.voice else 'Silent storyboard MP4'))
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409,'This episode already has an active render')
+    if data.renderer == 'animated':
+        from .animation import initialize_plan
+        series=db.get(Series,episode.series_id)
+        profiles=db.get(WorkspaceSetting,'channel_profiles')
+        channel=next((p for p in profiles.data['channels'] if p['series_id'] == episode.series_id),{}) if profiles else {}
+        initialize_plan(job,{'characters':series.characters,'visual_style':series.visual_style,
+            'content_type':channel.get('content_type','cartoon stories'),'language':channel.get('language','Tamil')},db)
+    db.add(StudioEvent(episode_id=episode.id, action='Render queued', detail=f'{data.renderer} MP4; voice={data.voice}'))
     db.commit()
     db.refresh(job)
-    return job
+    return read_job(job,db)
 
-@router.post('/jobs/{job_id}/retry', response_model=ProductionJob)
-def retry(job_id: int, db: Session = Depends(get_session)):
+class RetryRequest(BaseModel):
+    regenerate_failed: bool = False
+    retry_speech: bool = False
+
+@router.post('/jobs/{job_id}/retry', response_model=JobRead)
+def retry(job_id: int, data: RetryRequest | None = None, db: Session = Depends(get_session)):
     job = db.get(ProductionJob, job_id)
     if not job:
         raise HTTPException(404, 'Job not found')
@@ -61,11 +111,56 @@ def retry(job_id: int, db: Session = Depends(get_session)):
         raise HTTPException(409, 'Only failed jobs can be retried')
     if job.attempts >= 5:
         raise HTTPException(409, 'Retry limit reached; create a new render after correcting configuration')
+    data=data or RetryRequest()
+    if db.get(AnimationPlan,job_id):
+        clips=db.exec(select(AnimationClip).where(AnimationClip.job_id == job_id)).all()
+        if any(c.state in {'creating','uncertain'} for c in clips):
+            raise HTTPException(409,'Recover the uncertain provider task ID before retrying; no duplicate paid request will be sent')
+        failed=[c for c in clips if c.state == 'provider_failed']
+        if failed and not data.regenerate_failed:
+            raise HTTPException(422,'Regenerating failed provider scenes may incur new charges. Confirm new-charge consent first.')
+        markers=list((MEDIA/str(job_id)).glob('narration-*.requested'))
+        if markers and not data.retry_speech:
+            raise HTTPException(422,'An earlier speech request may have been charged. Confirm speech retry consent first.')
+        for clip in failed:
+            clip.state,clip.task_id='pending',None
+            db.add(clip)
+        for marker in markers:
+            marker.unlink()
     job.status, job.error, job.updated_at = 'queued', None, utcnow()
     db.add(job)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409,'Another render for this episode is already active')
     db.refresh(job)
-    return job
+    return read_job(job,db)
+
+class RecoveryRequest(BaseModel):
+    clip_id: int
+    task_id: UUID
+
+@router.post('/jobs/{job_id}/recover-task')
+def recover_task(job_id: int, data: RecoveryRequest, db: Session = Depends(get_session)):
+    job=db.get(ProductionJob,job_id)
+    clip=db.get(AnimationClip,data.clip_id)
+    if not job or job.status != 'failed' or not clip or clip.job_id != job_id or clip.state not in {'creating','uncertain'}:
+        raise HTTPException(409,'Only an uncertain scene in a failed job can be recovered')
+    import httpx
+    from .animation import api_headers, AnimationError
+    try:
+        with httpx.Client(timeout=45) as client:
+            response=client.get('https://api.dev.runwayml.com/v1/tasks/'+str(data.task_id),headers=api_headers())
+        if response.status_code != 200 or response.json().get('id') != str(data.task_id):
+            raise HTTPException(422,'Runway could not verify this task ID')
+    except httpx.HTTPError:
+        raise HTTPException(502,'Could not reach Runway; task was not changed')
+    except AnimationError as error:
+        raise HTTPException(503,str(error))
+    clip.task_id,clip.state=str(data.task_id),'submitted'
+    db.add(clip);db.commit()
+    return {'recovered':True}
 
 @router.get('/jobs/{job_id}/video')
 def video(job_id: int, db: Session = Depends(get_session)):
@@ -74,6 +169,24 @@ def video(job_id: int, db: Session = Depends(get_session)):
     if not job or job.status != 'completed' or not path.is_file():
         raise HTTPException(404, 'Completed video not found')
     return FileResponse(path, media_type='video/mp4', filename=f'zenbee-{job_id}.mp4')
+
+@router.get('/jobs/{job_id}/captions.{format}')
+def captions(job_id: int, format: Literal['vtt','srt'], db: Session = Depends(get_session)):
+    import html
+    job=db.get(ProductionJob,job_id)
+    if not job or job.status != 'completed':
+        raise HTTPException(404,'Completed video not found')
+    def stamp(seconds):
+        return f'{seconds//3600:02}:{seconds%3600//60:02}:{seconds%60:02}' + ('.000' if format == 'vtt' else ',000')
+    blocks=['WEBVTT\n'] if format == 'vtt' else []
+    elapsed=0
+    for index,scene in enumerate(job.story_snapshot['scenes']):
+        end=elapsed+scene['duration_seconds']
+        content=' '.join((scene.get('caption') or scene.get('narration') or '').split()).replace('-->','→')
+        blocks.append(f'{index+1}\n{stamp(elapsed)} --> {stamp(end)}\n{html.escape(content)}\n')
+        elapsed=end
+    return Response('\n'.join(blocks),media_type='text/vtt' if format == 'vtt' else 'application/x-subrip',
+        headers={'Content-Disposition':f'inline; filename="zenbee-{job_id}.{format}"'})
 
 def render(job: ProductionJob):
     import imageio_ffmpeg
@@ -134,11 +247,17 @@ def process_one(bind=engine):
             return True
         db.refresh(job)
         try:
-            render(job)
+            plan=db.get(AnimationPlan,job.id)
+            if plan:
+                from .animation import render_animation
+                render_animation(job,plan,db,MEDIA/str(job.id))
+            else:
+                render(job)
             job.status, job.error = 'completed', None
-        except Exception:
+        except Exception as error:
+            from .animation import AnimationError
             logging.exception('Render failed for job %s', job.id)
-            job.status, job.error = 'failed', 'Rendering failed. Check renderer dependencies, provider configuration and server logs before retrying.'
+            job.status, job.error = 'failed', str(error) if isinstance(error,AnimationError) else 'Rendering failed. Check renderer dependencies, provider configuration and server logs before retrying.'
         job.updated_at = utcnow()
         db.add(job)
         db.add(StudioEvent(episode_id=job.episode_id, action='Video ready' if job.status == 'completed' else 'Render failed', detail=f'Production job {job.id}'))

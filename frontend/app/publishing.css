@@ -3,7 +3,8 @@
 .z-publishing h3 { font-size: 17px; font-weight: 700; color: #42137b; margin: 0 0 7px; }
 .z-publishing p { margin: 8px 0 13px; color: #746786; }
 .z-publishing a { color: #7728d9; text-decoration: underline; text-underline-offset: 3px; }
-.z-publishing label { font-weight: 600; }
+.z-publishing label { font-weight: 600; max-width: 100%; min-width: 0; }
+.z-publishing select, .z-publishing textarea, .z-publishing input { max-width: 100%; box-sizing: border-box; }
 .z-publishing button { border: 1px solid #d7c1f6; border-radius: 9px; padding: 10px 16px; background: #f5efff; color: #6c24c6; font-size: 13px; font-weight: 650; cursor: pointer; }
 .z-publishing button:disabled { opacity: .55; cursor: not-allowed; }
 .z-publishing button:focus-visible, .z-publishing input:focus-visible, .z-publishing select:focus-visible, .z-publishing textarea:focus-visible { outline: 3px solid #c393fa; outline-offset: 2px; }

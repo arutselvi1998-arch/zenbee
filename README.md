@@ -2,6 +2,8 @@
 
 First working module of the ZENBEE automation app: Next.js + Tailwind dashboard, FastAPI, PostgreSQL, series memory, episode scheduling, and structured story / scene-prompt generation.
 
+Animated generation is now implemented through Runway Gen-4.5, with per-scene task recovery, last-frame visual references, optional Tamil narration, MP4 assembly and subtitle downloads. See [ANIMATION_SETUP.md](ANIMATION_SETUP.md). It requires a funded Runway developer account and a server-side `RUNWAYML_API_SECRET`; no live paid sample has been generated or quality-checked yet. OpenAI remains the script/voice provider.
+
 ## Current status and chosen workflow
 
 Source repository: https://github.com/arutselvi1998-arch/zenbee
@@ -115,7 +117,7 @@ The browser calls `http://localhost:8000` by default. Override `NEXT_PUBLIC_API_
 
 Publishing time and planned generation time are separate fields. Generation is planned 6 hours to 7 days in advance, clamped to the present if necessary. This version saves one-time plans and starts story generation manually. There is no unattended scheduler or automatic publishing yet.
 
-Still to implement: enforced multi-user team roles and invitation delivery, animated cartoon video APIs, timeline editing, AI thumbnail generation, a seven-day completed-video buffer, outbound email alerts, provider billing / cost metering and live analytics. Final media review and scheduled publishing now exist in Publishing Queue; the older script-review checklist remains a separate feature. Scripts ready is distinct from video ready. No consumer Google Flow automation or unverified video endpoint is used.
+Still to implement: enforced multi-user team roles and invitation delivery, timeline editing, AI thumbnail generation, a seven-day completed-video buffer, outbound email alerts, provider billing / cost metering and live analytics. Final media review and scheduled publishing now exist in Publishing Queue; the older script-review checklist remains a separate feature. Scripts ready is distinct from video ready. No consumer Google Flow automation or unverified video endpoint is used.
 
 ### Owner sign-in
 
