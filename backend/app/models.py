@@ -1,10 +1,13 @@
 from datetime import datetime, timezone
 from typing import Optional
-from sqlalchemy import Column, JSON, DateTime, UniqueConstraint
+from sqlalchemy import Column, JSON, DateTime, UniqueConstraint, Index, text
 from sqlmodel import SQLModel, Field
 
 def utcnow():
     return datetime.now(timezone.utc)
+
+def as_utc(value):
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 class Series(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -76,3 +79,37 @@ class LoginSession(SQLModel, table=True):
     token_hash: str = Field(primary_key=True)
     account_id: int = Field(foreign_key='owneraccount.id')
     expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
+class ProviderConnection(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint('channel_key', 'provider'),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    channel_key: str = Field(index=True)
+    provider: str
+    account_id: str
+    account_label: str
+    encrypted_tokens: str
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
+class OAuthAttempt(SQLModel, table=True):
+    state_hash: str = Field(primary_key=True)
+    channel_key: str
+    provider: str
+    verifier: str
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
+class ScheduledRelease(SQLModel, table=True):
+    __table_args__ = (Index('uq_release_active_job', 'job_id', unique=True,
+        sqlite_where=text("status <> 'cancelled'"), postgresql_where=text("status <> 'cancelled'")),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    job_id: int = Field(foreign_key='productionjob.id', index=True)
+    channel_key: str = Field(index=True)
+    title: str
+    caption: str
+    made_for_kids: bool
+    publish_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+    media_hash: str
+    status: str = Field(default='pending_review', index=True)
+    platform_results: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    calendar_status: str = 'pending'
+    error: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))

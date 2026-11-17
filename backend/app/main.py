@@ -17,14 +17,21 @@ from .production import router as production_router, start_worker
 from .scheduler import router as scheduler_router
 from .security import router as security_router, enabled as auth_enabled, account_for, check_origin
 from .channels import router as channels_router
+from .connections import router as connections_router
+from .publishing import router as publishing_router, start_publishing_worker
 
 @asynccontextmanager
 async def lifespan(app):
-    init_db()
-    stop = start_worker() if os.getenv('PRODUCTION_WORKER', '0') == '1' else None
+    isolated_test = get_session in app.dependency_overrides
+    if not isolated_test:
+        init_db()
+    stop = start_worker() if not isolated_test and os.getenv('PRODUCTION_WORKER', '0') == '1' else None
+    publishing_stop = start_publishing_worker() if not isolated_test and os.getenv('PRODUCTION_WORKER', '0') == '1' else None
     yield
     if stop:
         stop.set()
+    if publishing_stop:
+        publishing_stop.set()
 
 app = FastAPI(title='ZENBEE Studio API', lifespan=lifespan)
 app.include_router(operations_router)
@@ -33,6 +40,8 @@ app.include_router(production_router)
 app.include_router(scheduler_router)
 app.include_router(security_router)
 app.include_router(channels_router)
+app.include_router(connections_router)
+app.include_router(publishing_router)
 
 @app.middleware('http')
 async def protect_workspace(request: Request, call_next):
@@ -40,7 +49,10 @@ async def protect_workspace(request: Request, call_next):
         try:
             if request.method not in {'GET', 'HEAD'}:
                 check_origin(request)
-            if not request.url.path.startswith('/api/auth/') and request.url.path != '/api/health':
+            import re
+            public_callback = request.method == 'GET' and re.fullmatch(r'/api/connections/oauth/(google|instagram)/callback',request.url.path)
+            signed_media = request.method == 'GET' and re.fullmatch(r'/api/publishing/media/\d+',request.url.path)
+            if not request.url.path.startswith('/api/auth/') and request.url.path != '/api/health' and not public_callback and not signed_media:
                 from .db import engine
                 with Session(engine) as db:
                     if not account_for(request, db):

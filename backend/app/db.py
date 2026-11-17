@@ -12,3 +12,8 @@ def get_session():
 
 def init_db():
     SQLModel.metadata.create_all(engine)
+    # Add the release uniqueness index when upgrading an existing workspace.
+    from .models import ScheduledRelease
+    for index in ScheduledRelease.__table__.indexes:
+        if index.name == 'uq_release_active_job':
+            index.create(engine, checkfirst=True)

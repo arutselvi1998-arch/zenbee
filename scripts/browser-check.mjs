@@ -20,10 +20,10 @@ try {
   let seq=0;const pending=new Map();const errors=[];
   ws.addEventListener('message',event=>{const data=JSON.parse(event.data);if(data.id){const item=pending.get(data.id);if(item){pending.delete(data.id);data.error?item.reject(data.error):item.resolve(data.result)}}if(data.method==='Runtime.exceptionThrown')errors.push(data.params.exceptionDetails.text)});
   const call=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}))});
-  const evaluate=async expression=>(await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true})).result.value;
+  const evaluate=async expression=>(await call('Runtime.evaluate',{expression:expression.replaceAll('http://localhost:8000',process.env.ZENBEE_QA_API_URL || 'http://localhost:8000'),returnByValue:true,awaitPromise:true})).result.value;
   await call('Runtime.enable');await call('Page.enable');
   await call('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});
-  await call('Page.navigate',{url:'http://localhost:3000'});
+  await call('Page.navigate',{url:process.env.ZENBEE_QA_URL || 'http://localhost:3000'});
   for(let i=0;i<50;i++){if(await evaluate("!!document.querySelector('.z-series-mini')"))break;await delay(500)}
   await delay(1500);
   const initial=await evaluate("({title:document.title,hero:document.querySelector('.z-hero h2')?.textContent,overflow:document.documentElement.scrollWidth>innerWidth})");

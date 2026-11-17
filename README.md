@@ -8,7 +8,7 @@ Source repository: https://github.com/arutselvi1998-arch/zenbee
 
 Implemented: single-owner login, saved series and scripts, recurring episode materialization, opt-in unattended story generation, durable render jobs, real storyboard MP4 exports, optional OpenAI speech, manual script review, and local workspace settings. See the owner sign-in and production queue sections below for current configuration. Earlier reference-update sections describe the initial screen work and may refer to capabilities added later.
 
-Chosen target workflow: OpenAI generation → owner reviews the final video → approved videos publish automatically to both YouTube and Instagram at the scheduled time, with a Google Calendar reminder 15 minutes beforehand. Unapproved videos must be held. This publishing workflow and automatic Calendar synchronization still require implementation and account authorization; they are not active yet. A ChatGPT login does not configure the app's OpenAI API credentials.
+Chosen workflow: OpenAI generation → owner reviews the final video → approved videos publish to both YouTube and Instagram at the scheduled time, with a Google Calendar reminder 15 minutes beforehand. The OAuth connections, review-bound releases, platform adapters and Calendar synchronization are implemented and tested with provider mocks. They are not active against live accounts yet: application credentials, account consent and a continuously running HTTPS host are required. A ChatGPT login does not configure the app's OpenAI API credentials. Follow [ACCOUNT_SETUP.md](ACCOUNT_SETUP.md) for activation.
 
 GitHub stores the source code and runs the included build/test workflow. It does not run this FastAPI backend or its scheduled worker. Continuous publishing requires an always-running host; no production hosting has been deployed. Never commit provider keys, OAuth tokens, the workspace database, or generated videos.
 
@@ -115,7 +115,7 @@ The browser calls `http://localhost:8000` by default. Override `NEXT_PUBLIC_API_
 
 Publishing time and planned generation time are separate fields. Generation is planned 6 hours to 7 days in advance, clamped to the present if necessary. This version saves one-time plans and starts story generation manually. There is no unattended scheduler or automatic publishing yet.
 
-Still to implement: enforced multi-user team roles and invitation delivery, animated cartoon video APIs, timeline editing, AI thumbnail generation, final media quality approvals, YouTube/Instagram OAuth and publishing, a seven-day completed-video buffer, outbound alerts, provider billing / cost metering and live analytics. Scripts ready is distinct from video ready. No consumer Google Flow automation or unverified video endpoint is used.
+Still to implement: enforced multi-user team roles and invitation delivery, animated cartoon video APIs, timeline editing, AI thumbnail generation, a seven-day completed-video buffer, outbound email alerts, provider billing / cost metering and live analytics. Final media review and scheduled publishing now exist in Publishing Queue; the older script-review checklist remains a separate feature. Scripts ready is distinct from video ready. No consumer Google Flow automation or unverified video endpoint is used.
 
 ### Owner sign-in
 

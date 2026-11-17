@@ -17,6 +17,7 @@ import SettingsWorkspace, {
 } from "./settings-workspace";
 import "./settings.css";
 import ProductionWorkspace from "./production-workspace";
+import PublishingWorkspace from "./publishing-workspace";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
@@ -3803,38 +3804,45 @@ export default function StudioViews(props: Props) {
           {page === "Production Queue" && (
             <ProductionWorkspace episodes={props.episodes} />
           )}
-          {operationsPages.includes(page) && page !== "Production Queue" && (
-            <OperationsWorkspace
-              page={page}
-              series={props.series}
-              episodes={props.episodes}
-              preview={preview}
-              connected={props.connected}
-              query={query}
-              onNew={() => go("Create Episode")}
-              onNavigate={go}
-              onOpen={props.onOpen}
-              onConnect={props.onConnect}
-              onRefresh={props.onRefresh}
-              notify={props.notify}
-            />
+          {(page === "Publishing Queue" ||
+            page === "Social Account Connections") && (
+            <PublishingWorkspace episodes={props.episodes} />
           )}
-          {settingsPages.includes(page) && (
-            <SettingsWorkspace
-              page={page}
-              episodes={props.episodes}
-              series={props.series}
-              preview={preview}
-              connected={props.connected}
-              mode={props.mode}
-              query={query}
-              notify={props.notify}
-              onNavigate={go}
-              onConnect={props.onConnect}
-              onNew={() => go("Create Episode")}
-              onOpen={props.onOpen}
-            />
-          )}
+          {operationsPages.includes(page) &&
+            page !== "Production Queue" &&
+            page !== "Publishing Queue" && (
+              <OperationsWorkspace
+                page={page}
+                series={props.series}
+                episodes={props.episodes}
+                preview={preview}
+                connected={props.connected}
+                query={query}
+                onNew={() => go("Create Episode")}
+                onNavigate={go}
+                onOpen={props.onOpen}
+                onConnect={props.onConnect}
+                onRefresh={props.onRefresh}
+                notify={props.notify}
+              />
+            )}
+          {settingsPages.includes(page) &&
+            page !== "Social Account Connections" && (
+              <SettingsWorkspace
+                page={page}
+                episodes={props.episodes}
+                series={props.series}
+                preview={preview}
+                connected={props.connected}
+                mode={props.mode}
+                query={query}
+                notify={props.notify}
+                onNavigate={go}
+                onConnect={props.onConnect}
+                onNew={() => go("Create Episode")}
+                onOpen={props.onOpen}
+              />
+            )}
           <footer className="z-footer">
             <span>🐝 A little spark. Endless stories.</span>
             <span>ZENBEE Studio · Your imagination, brought to life.</span>

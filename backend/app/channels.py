@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 from sqlmodel import Session, select
 from .db import get_session
-from .models import Series, StudioRecord, WorkspaceSetting, StudioEvent, utcnow
+from .models import Series, StudioRecord, WorkspaceSetting, StudioEvent, ProviderConnection, utcnow
 from .operations import RecurringData
 
 router = APIRouter(prefix='/api/channels')
@@ -77,8 +77,11 @@ def configure_channels(config: ChannelConfiguration, db: Session, start_date: da
 @router.get('')
 def list_channels(db: Session = Depends(get_session)):
     setting = db.get(WorkspaceSetting, 'channel_profiles')
-    return {'channels':setting.data['channels'] if setting else [],
-        'publishing_connected':False, 'calendar_connected':False}
+    profiles=setting.data['channels'] if setting else []
+    authorized={(r.channel_key,r.provider) for r in db.exec(select(ProviderConnection)).all()}
+    return {'channels':profiles,
+        'publishing_connected':bool(profiles) and all((p['key'],provider) in authorized for p in profiles for provider in ['google','instagram']),
+        'calendar_connected':bool(profiles) and all((p['key'],'google') in authorized for p in profiles)}
 
 def configure_from_file(path: Path, db: Session, start_date: date):
     return configure_channels(ChannelConfiguration.model_validate(json.loads(path.read_text(encoding='utf-8'))), db, start_date)
