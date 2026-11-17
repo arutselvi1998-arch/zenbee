@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { occurrences } from '../frontend/app/recurrence.ts';
+const base={frequency:'Daily',start_date:'2026-11-16',time:'18:00',weekdays:[2,4],month_day:31,interval_hours:6,count:3};
+const now=new Date('2026-11-16T00:00:00Z');
+assert.equal(occurrences(base,now)[0],'2026-11-16T12:30:00.000Z');
+assert.equal(occurrences({...base,frequency:'Weekly'},now)[0],'2026-11-17T12:30:00.000Z');
+assert.equal(occurrences({...base,frequency:'Monthly'},now)[0],'2026-12-31T12:30:00.000Z');
+assert.equal(occurrences({...base,frequency:'Custom'},now)[1],'2026-11-16T18:30:00.000Z');
+assert.deepEqual(occurrences({...base,frequency:'Weekly',weekdays:[]},now),[]);
+assert.deepEqual(occurrences({...base,time:'28:00'},now),[]);
+assert.equal(occurrences({...base,count:500},now).length,30);
+assert.ok(occurrences({...base,start_date:'2000-01-01'},now).every(d=>new Date(d)>now));
+console.log('8 recurrence checks passed');
