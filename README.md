@@ -2,6 +2,12 @@
 
 First working module of the ZENBEE automation app: Next.js + Tailwind dashboard, FastAPI, PostgreSQL, series memory, episode scheduling, and structured story / scene-prompt generation.
 
+## Open the local app on Windows
+
+Double-click `Open-ZENBEE.cmd` in this folder. It starts the frontend and API in hidden background processes, waits until both respond, and opens http://localhost:3000. If they are already running, it reuses them. Logs are saved in `.logs/`.
+
+This address works on the computer running ZENBEE. After shutting down or restarting Windows, launch `Open-ZENBEE.cmd` again. This launcher does not deploy a public website or turn on paid generation/publishing.
+
 Animated generation is now implemented through Runway Gen-4.5, with per-scene task recovery, last-frame visual references, optional Tamil narration, MP4 assembly and subtitle downloads. See [ANIMATION_SETUP.md](ANIMATION_SETUP.md). It requires a funded Runway developer account and a server-side `RUNWAYML_API_SECRET`; no live paid sample has been generated or quality-checked yet. OpenAI remains the script/voice provider.
 
 ## Current status and chosen workflow
