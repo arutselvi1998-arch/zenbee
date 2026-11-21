@@ -11,6 +11,7 @@ type Job = {
   error: string | null;
   voice: boolean;
   renderer: "storyboard" | "animated";
+  thumbnail_ready: boolean;
   clips: {
     id: number;
     part: number;
@@ -288,6 +289,26 @@ export default function ProductionWorkspace({
           )}
           {job.status === "completed" && (
             <>
+              {job.thumbnail_ready && (
+                <div>
+                  <h3>Automatic YouTube thumbnail</h3>
+                  <img
+                    src={`${API}/api/production/jobs/${job.id}/thumbnail.jpg`}
+                    alt={`Thumbnail for episode ${job.episode_id}`}
+                    style={{
+                      width: 320,
+                      maxWidth: "100%",
+                      borderRadius: 10,
+                      display: "block",
+                    }}
+                  />
+                  <a
+                    href={`${API}/api/production/jobs/${job.id}/thumbnail.jpg`}
+                  >
+                    Download thumbnail (1280 × 720)
+                  </a>
+                </div>
+              )}
               <video
                 controls
                 preload="metadata"

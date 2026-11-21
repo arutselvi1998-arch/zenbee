@@ -41,6 +41,11 @@ def workspace(client, monkeypatch, tmp_path):
     folder=tmp_path/str(job.id)
     folder.mkdir()
     (folder/'episode.mp4').write_bytes(b'fixture reviewed video')
+    from PIL import Image
+    from app.models import ThumbnailAsset
+    from app.thumbnails import digest
+    Image.new('RGB',(1280,720),'purple').save(folder/'thumbnail.jpg')
+    db.add(ThumbnailAsset(job_id=job.id,digest=digest(folder/'thumbnail.jpg')));db.commit()
     yield SimpleNamespace(db=db,bind=db.get_bind(),profiles=profiles,job=job,episode=saved,client=client)
     generator.close()
 
@@ -57,6 +62,7 @@ def connect_fixture(w,monkeypatch):
         tokens=connections.cipher().encrypt(json.dumps({'access_token':'fixture-only-token'}).encode()).decode()
         w.db.add(ProviderConnection(channel_key=w.profiles[0]['key'],provider=provider,account_id='account',account_label='Fixture account',encrypted_tokens=tokens,expires_at=utcnow()+timedelta(days=30)))
     w.db.commit()
+    monkeypatch.setattr(publishing,'upload_youtube_thumbnail',lambda *args:'uploaded')
 
 def test_review_binding_missed_approval_and_channel_protection(workspace):
     w=workspace

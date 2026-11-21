@@ -68,6 +68,15 @@ class AnimationPlan(SQLModel, table=True):
     model: str = 'gen4.5'
     context: dict = Field(sa_column=Column(JSON, nullable=False))
 
+class ThumbnailAsset(SQLModel, table=True):
+    job_id: int = Field(primary_key=True, foreign_key='productionjob.id')
+    digest: str
+    created_at: datetime = Field(default_factory=utcnow, sa_column=Column(DateTime(timezone=True)))
+
+class ReleaseThumbnail(SQLModel, table=True):
+    release_id: int = Field(primary_key=True, foreign_key='scheduledrelease.id')
+    digest: str
+
 class AnimationClip(SQLModel, table=True):
     __table_args__ = (UniqueConstraint('job_id', 'part'),)
     id: Optional[int] = Field(default=None, primary_key=True)

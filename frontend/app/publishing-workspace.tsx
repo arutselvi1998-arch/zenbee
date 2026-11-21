@@ -28,7 +28,10 @@ type Release = {
   status: string;
   calendar_status: string;
   error: string | null;
-  platform_results: Record<string, { id: string; status: string }>;
+  platform_results: Record<
+    string,
+    { id: string; status: string; thumbnail_status?: string }
+  >;
 };
 type Connections = {
   google_configured: boolean;
@@ -378,6 +381,14 @@ export default function PublishingWorkspace({
               src={`${API}/api/production/jobs/${release.job_id}/video`}
               style={{ width: 200, maxWidth: "100%", maxHeight: 350 }}
             />
+            <div>
+              <h3>YouTube thumbnail</h3>
+              <img
+                src={`${API}/api/production/jobs/${release.job_id}/thumbnail.jpg`}
+                alt={`YouTube thumbnail: ${release.title}`}
+                style={{ width: 320, maxWidth: "100%", borderRadius: 10 }}
+              />
+            </div>
             <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
               {release.caption}
             </p>
@@ -390,6 +401,32 @@ export default function PublishingWorkspace({
               ([platform, result]) => (
                 <p key={platform}>
                   {platform}: {result.status} · Receipt {result.id}
+                  {result.thumbnail_status && (
+                    <> · Thumbnail: {result.thumbnail_status}</>
+                  )}
+                  {platform === "YouTube" &&
+                    result.thumbnail_status === "failed" && (
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          run(async () => {
+                            const outcome = await api<{
+                              thumbnail_status: string;
+                            }>(
+                              `/publishing/releases/${release.id}/retry-thumbnail`,
+                              {},
+                            );
+                            setMessage(
+                              outcome.thumbnail_status === "uploaded"
+                                ? "YouTube thumbnail updated. The video was not uploaded again."
+                                : "YouTube did not accept the thumbnail. Check custom-thumbnail permissions and quota.",
+                            );
+                          })
+                        }
+                      >
+                        Retry thumbnail only
+                      </button>
+                    )}
                 </p>
               ),
             )}
@@ -406,8 +443,8 @@ export default function PublishingWorkspace({
                       })
                     }
                   />{" "}
-                  I watched the full video and checked the title, caption and
-                  audience setting.
+                  I watched the full video and checked the thumbnail, title,
+                  caption and audience setting.
                 </label>
                 <p>
                   <button

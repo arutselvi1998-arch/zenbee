@@ -38,6 +38,12 @@ def test_actual_mp4_render_and_worker_failure(client, monkeypatch, tmp_path):
     video = client.get(f"/api/production/jobs/{queued['id']}/video")
     assert video.status_code == 200 and video.headers['content-type'] == 'video/mp4'
     assert b'ftyp' in video.content[:32] and len(video.content) > 1000
+    from PIL import Image
+    from io import BytesIO
+    thumbnail=client.get(f"/api/production/jobs/{queued['id']}/thumbnail.jpg")
+    assert thumbnail.status_code == 200
+    assert Image.open(BytesIO(thumbnail.content)).size == (1280,720)
+    assert result['thumbnail_ready'] is True
     client.post('/api/production/jobs', json={'episode_id':episode['id']})
     def fail(job):
         raise RuntimeError('private provider detail')

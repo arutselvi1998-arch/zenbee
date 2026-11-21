@@ -16,7 +16,7 @@ from sqlmodel import Session, select
 from . import production
 from .connections import access_token, checked, find_connection, profile_for, api_base
 from .db import engine, get_session
-from .models import Episode, ProductionJob, ScheduledRelease, StudioEvent, utcnow, as_utc
+from .models import Episode, ProductionJob, ScheduledRelease, StudioEvent, ReleaseThumbnail, utcnow, as_utc
 from .scheduler import IST
 
 router = APIRouter(prefix='/api/publishing')
@@ -38,6 +38,12 @@ def check_media(release, db):
         raise HTTPException(409,'The episode or script changed. Create a fresh render and review.')
     if media_digest(job.id) != release.media_hash:
         raise HTTPException(409,'Video changed after scheduling. Create a fresh release and review.')
+    frozen=db.get(ReleaseThumbnail,release.id) if release.id else None
+    if frozen:
+        from .thumbnails import digest
+        path=production.MEDIA/str(job.id)/'thumbnail.jpg'
+        if not path.is_file() or digest(path) != frozen.digest:
+            raise HTTPException(409,'Thumbnail changed after review. Create a new release and review it again.')
     return job, episode
 
 class ReleaseCreate(BaseModel):
@@ -86,9 +92,13 @@ def create_release(data: ReleaseCreate, db: Session = Depends(get_session)):
         raise HTTPException(409,'This render already has a release. Cancel it before making a replacement.')
     release = ScheduledRelease(**data.model_dump(exclude={'publish_at'}),publish_at=data.publish_at or next_slot(profile,utcnow()),media_hash=media_digest(data.job_id))
     check_media(release,db)
+    from .thumbnails import ensure_thumbnail
+    asset=ensure_thumbnail(job,db,production.MEDIA/str(job.id))
     db.add(release)
     db.add(StudioEvent(episode_id=episode.id,action='Video review requested',detail=f'{profile["name"]}: {data.title}'))
     try:
+        db.flush()
+        db.add(ReleaseThumbnail(release_id=release.id,digest=asset.digest))
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -205,6 +215,53 @@ def upload_youtube(release, token):
             result=checked(client.put(location,content=stream,headers={'Content-Type':'video/mp4','Content-Length':str(path.stat().st_size)}))
     return {'id':result['id'],'status':'published' if result.get('status',{}).get('privacyStatus') == 'public' else 'uploaded_private'}
 
+def upload_youtube_thumbnail(release, video_id, token, db):
+    if not db.get(ReleaseThumbnail,release.id):
+        return 'not_reviewed'
+    check_media(release,db)
+    path=production.MEDIA/str(release.job_id)/'thumbnail.jpg'
+    try:
+        with httpx.Client(timeout=60) as client, path.open('rb') as stream:
+            import time
+            headers={'Authorization':'Bearer '+token}
+            # YouTube can ignore Shorts thumbnails submitted before processing
+            # completes. Wait for readiness; later retries update only the image.
+            for attempt in range(12):
+                state=client.get('https://www.googleapis.com/youtube/v3/videos',
+                    params={'id':video_id,'part':'processingDetails,status'},headers=headers)
+                if state.status_code != 200:
+                    return 'failed'
+                items=state.json().get('items',[])
+                if not items:
+                    return 'failed'
+                processing=items[0].get('processingDetails',{}).get('processingStatus')
+                uploaded=items[0].get('status',{}).get('uploadStatus')
+                if processing == 'succeeded' or uploaded == 'processed':
+                    break
+                if processing != 'processing' or attempt == 11:
+                    return 'failed'
+                time.sleep(5)
+            response=client.post('https://www.googleapis.com/upload/youtube/v3/thumbnails/set',
+                params={'videoId':video_id,'uploadType':'media'},
+                headers={'Authorization':'Bearer '+token,'Content-Type':'image/jpeg'},content=stream)
+        return 'uploaded' if response.status_code == 200 else 'failed'
+    except (httpx.HTTPError,ValueError):
+        return 'failed'
+
+@router.post('/releases/{release_id}/retry-thumbnail')
+def retry_thumbnail(release_id: int, db: Session = Depends(get_session)):
+    release=db.get(ScheduledRelease,release_id)
+    result=release.platform_results.get('YouTube',{}) if release else {}
+    if not release or not result.get('id') or not db.get(ReleaseThumbnail,release_id):
+        raise HTTPException(409,'No uploaded YouTube video with a reviewed thumbnail is available')
+    connection=find_connection(release.channel_key,'google',db)
+    if not connection:
+        raise HTTPException(409,'Reconnect the YouTube account first')
+    state=upload_youtube_thumbnail(release,result['id'],access_token(connection,db),db)
+    release.platform_results={**release.platform_results,'YouTube':{**result,'thumbnail_status':state}}
+    db.add(release);db.commit()
+    return {'thumbnail_status':state}
+
 def instagram_base():
     version=os.getenv('INSTAGRAM_GRAPH_VERSION','v27.0')
     if not re.fullmatch(r'v\d+\.\d+',version):
@@ -241,6 +298,10 @@ def process_release(release, db):
         release.platform_results={**release.platform_results,platform:result}
         db.add(release)
         db.commit()
+        if provider == 'google':
+            state=upload_youtube_thumbnail(release,result['id'],token,db)
+            release.platform_results={**release.platform_results,platform:{**result,'thumbnail_status':state}}
+            db.add(release);db.commit()
     release.status='published' if all(r.get('status') == 'published' for r in release.platform_results.values()) else 'partial'
     db.add(release)
     db.add(StudioEvent(action='Publishing result',detail=f'Release {release.id}: {release.status}'))

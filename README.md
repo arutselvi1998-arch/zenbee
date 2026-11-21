@@ -2,6 +2,10 @@
 
 First working module of the ZENBEE automation app: Next.js + Tailwind dashboard, FastAPI, PostgreSQL, series memory, episode scheduling, and structured story / scene-prompt generation.
 
+## Automatic YouTube thumbnails
+
+Completed renders automatically get a 1280×720 JPEG thumbnail from a representative video frame, with a channel badge and blurred side fill for portrait footage. This works with long or short MP4s without an image-generation API charge. Production Queue shows the image and a download link. Publishing Queue includes it in the required review, and changing it invalidates the release's approval. The YouTube adapter applies the reviewed image after upload and records thumbnail status separately from the video receipt. **Retry thumbnail only** updates the existing video without re-uploading it. YouTube account permissions and quota still apply; live thumbnail uploads have not been tested here. The video generator itself is still limited to 60 seconds; long-form video generation is a separate pending change.
+
 ## Open the local app on Windows
 
 Double-click `Open-ZENBEE.cmd` in this folder. It starts the frontend and API in hidden background processes, waits until both respond, and opens http://localhost:3000. If they are already running, it reuses them. Logs are saved in `.logs/`.

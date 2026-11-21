@@ -15,7 +15,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from .db import engine, get_session
-from .models import Episode, ProductionJob, StudioEvent, Series, WorkspaceSetting, AnimationPlan, AnimationClip, utcnow
+from .models import Episode, ProductionJob, StudioEvent, Series, WorkspaceSetting, AnimationPlan, AnimationClip, ThumbnailAsset, utcnow
 from .schemas import Story
 
 router = APIRouter(prefix='/api/production')
@@ -47,12 +47,13 @@ class JobRead(BaseModel):
     updated_at: datetime
     renderer: str = 'storyboard'
     clips: list[dict] = Field(default_factory=list)
+    thumbnail_ready: bool = False
 
 def read_job(job,db):
     plan=db.get(AnimationPlan,job.id)
     clips=db.exec(select(AnimationClip).where(AnimationClip.job_id == job.id).order_by(AnimationClip.part)).all() if plan else []
     return {**job.model_dump(),'renderer':'animated' if plan else 'storyboard',
-        'clips':[c.model_dump() for c in clips]}
+        'clips':[c.model_dump() for c in clips], 'thumbnail_ready':db.get(ThumbnailAsset,job.id) is not None}
 
 @router.get('/jobs', response_model=list[JobRead])
 def jobs(db: Session = Depends(get_session)):
@@ -170,6 +171,14 @@ def video(job_id: int, db: Session = Depends(get_session)):
         raise HTTPException(404, 'Completed video not found')
     return FileResponse(path, media_type='video/mp4', filename=f'zenbee-{job_id}.mp4')
 
+@router.get('/jobs/{job_id}/thumbnail.jpg')
+def thumbnail(job_id: int, db: Session = Depends(get_session)):
+    job=db.get(ProductionJob,job_id)
+    path=MEDIA/str(job_id)/'thumbnail.jpg'
+    if not job or job.status != 'completed' or not db.get(ThumbnailAsset,job_id) or not path.is_file():
+        raise HTTPException(404,'Thumbnail not available yet')
+    return FileResponse(path,media_type='image/jpeg',filename=f'zenbee-{job_id}-thumbnail.jpg')
+
 @router.get('/jobs/{job_id}/captions.{format}')
 def captions(job_id: int, format: Literal['vtt','srt'], db: Session = Depends(get_session)):
     import html
@@ -253,6 +262,8 @@ def process_one(bind=engine):
                 render_animation(job,plan,db,MEDIA/str(job.id))
             else:
                 render(job)
+            from .thumbnails import ensure_thumbnail
+            ensure_thumbnail(job,db,MEDIA/str(job.id))
             job.status, job.error = 'completed', None
         except Exception as error:
             from .animation import AnimationError
@@ -263,6 +274,17 @@ def process_one(bind=engine):
         db.add(StudioEvent(episode_id=job.episode_id, action='Video ready' if job.status == 'completed' else 'Render failed', detail=f'Production job {job.id}'))
         db.commit()
         return True
+
+def backfill_thumbnail(bind=engine):
+    from .thumbnails import ensure_thumbnail
+    with Session(bind) as db:
+        jobs=db.exec(select(ProductionJob).outerjoin(ThumbnailAsset,ProductionJob.id == ThumbnailAsset.job_id)
+            .where(ProductionJob.status == 'completed',ThumbnailAsset.job_id.is_(None)).limit(20)).all()
+        for job in jobs:
+            folder=MEDIA/str(job.id)
+            if (folder/'episode.mp4').is_file():
+                ensure_thumbnail(job,db,folder);db.commit();return True
+    return False
 
 def start_worker():
     # Run exactly one application worker. Interrupted jobs require explicit retry,
@@ -289,6 +311,7 @@ def start_worker():
                     generate_due_story()
                 if process_one():
                     continue
+                backfill_thumbnail()
             except Exception:
                 logging.exception('Production worker failed')
             stop.wait(2)
