@@ -7,7 +7,7 @@ elseif (Test-Path -LiteralPath $workspacePython) { $studioPython = $workspacePyt
 else { throw 'Install Python and backend dependencies using README.md first.' }
 $logs = Join-Path $studioRoot '.logs'
 $env:PRODUCTION_WORKER = '1'
-$env:AUTH_REQUIRED = '1'
+$env:AUTH_REQUIRED = '0'
 New-Item -ItemType Directory -Path $logs -Force | Out-Null
 $backendProcess = Start-Process -FilePath $studioPython -ArgumentList @('-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000') -WorkingDirectory (Join-Path $studioRoot 'backend') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'backend.log') -RedirectStandardError (Join-Path $logs 'backend-error.log') -PassThru
 Write-Host 'ZENBEE Studio: http://localhost:3000'

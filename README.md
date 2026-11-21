@@ -127,7 +127,9 @@ Still to implement: enforced multi-user team roles and invitation delivery, time
 
 ### Owner sign-in
 
-The local launcher and Compose enable `AUTH_REQUIRED=1`. On first use, open the app and create your workspace owner with a username and a password of at least 12 characters. No default password exists. Passwords are salted and hashed with PBKDF2; session tokens are random, stored as hashes, and delivered through HttpOnly, SameSite=Strict cookies. Sessions expire after 12 hours and logout revokes them. Five incorrect passwords lock the account for 15 minutes. This is a single-owner workspace; saved team member and role plans do not create additional login accounts or enforce team roles.
+The local launchers now set `AUTH_REQUIRED=0`, so the app opens directly into the dashboard with no login or owner setup screen. Compose also defaults to login off; set `AUTH_REQUIRED=1` in its environment to opt in. Existing owner accounts are retained. Untrusted browser origins are rejected for API writes even when login is off.
+
+When optional owner sign-in is enabled, first create a username and a password of at least 12 characters. No default password exists. Passwords are salted and hashed with PBKDF2; session tokens are random, stored as hashes, and delivered through HttpOnly, SameSite=Strict cookies. Sessions expire after 12 hours and logout revokes them. Five incorrect passwords lock the account for 15 minutes. This is a single-owner workspace; saved team member and role plans do not create additional login accounts or enforce team roles.
 
 Remote initial setup requires `OWNER_SETUP_TOKEN` configured on the backend and entered in the owner form. After setup, the owner cannot be recreated through the API. Keep database backups: password reset and recovery delivery are not implemented. For HTTPS deployment, set `COOKIE_SECURE=1`, configure the exact `FRONTEND_ORIGIN`, and use HTTPS for the frontend and API. The shipped launcher binds only to loopback. Direct backend commands must explicitly set `AUTH_REQUIRED=1`; tests intentionally run without it except security tests. Authenticated writes reject untrusted browser origins.
 

@@ -3,6 +3,12 @@ from app.main import app
 from app.db import get_session
 from app import db as database
 
+def test_local_workspace_opens_without_login_and_rejects_untrusted_writes(client, monkeypatch):
+    monkeypatch.setenv('AUTH_REQUIRED','0')
+    assert client.get('/api/auth/status').json()['required'] is False
+    assert client.get('/api/series').status_code == 200
+    assert client.post('/api/series',json={'name':'Test','visual_style':'Cartoon','characters':'Bee'},headers={'Origin':'https://untrusted.example'}).status_code == 403
+
 def test_owner_login_protects_workspace_and_revokes_logout(client, monkeypatch):
     generator = app.dependency_overrides[get_session]()
     db = next(generator)

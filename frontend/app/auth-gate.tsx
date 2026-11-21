@@ -83,6 +83,28 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         {children}
       </>
     );
+  if (!status)
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "#f8f5ff",
+          padding: 24,
+        }}
+      >
+        <div role="status">
+          <h1>Opening ZENBEE Studio…</h1>
+          {error && (
+            <>
+              <p>{error}</p>
+              <button onClick={load}>Retry connection</button>
+            </>
+          )}
+        </div>
+      </main>
+    );
   return (
     <main
       style={{

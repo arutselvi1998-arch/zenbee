@@ -45,14 +45,14 @@ app.include_router(publishing_router)
 
 @app.middleware('http')
 async def protect_workspace(request: Request, call_next):
-    if auth_enabled() and request.method != 'OPTIONS' and request.url.path.startswith('/api/'):
+    if request.method != 'OPTIONS' and request.url.path.startswith('/api/'):
         try:
             if request.method not in {'GET', 'HEAD'}:
                 check_origin(request)
             import re
             public_callback = request.method == 'GET' and re.fullmatch(r'/api/connections/oauth/(google|instagram)/callback',request.url.path)
             signed_media = request.method == 'GET' and re.fullmatch(r'/api/publishing/media/\d+',request.url.path)
-            if not request.url.path.startswith('/api/auth/') and request.url.path != '/api/health' and not public_callback and not signed_media:
+            if auth_enabled() and not request.url.path.startswith('/api/auth/') and request.url.path != '/api/health' and not public_callback and not signed_media:
                 from .db import engine
                 with Session(engine) as db:
                     if not account_for(request, db):

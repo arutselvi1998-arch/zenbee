@@ -37,7 +37,7 @@ print('No active jobs; local SQLite backup prepared when applicable.')
         Stop-Process -Id $apiProcess.ProcessId -Force
         Wait-Process -Id $apiProcess.ProcessId -Timeout 10 -ErrorAction SilentlyContinue
     }
-    $env:AUTH_REQUIRED = '1'
+    $env:AUTH_REQUIRED = '0'
     $env:PRODUCTION_WORKER = '1'
     $startedApi = Start-Process -FilePath $studioPython -ArgumentList @('-m','uvicorn','app.main:app','--host','127.0.0.1','--port','8000') -WorkingDirectory (Join-Path $studioRoot 'backend') -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logs 'backend.log') -RedirectStandardError (Join-Path $logs 'backend-error.log') -PassThru
     Set-Content -LiteralPath (Join-Path $logs 'backend.pid') -Value $startedApi.Id
